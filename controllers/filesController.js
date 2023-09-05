@@ -69,5 +69,73 @@ class FileController {
       return res.status(500).json({ error: 'Internal Server Error' });
     }
   }
+  static async getShow(req, res) {
+    const { token } = req.headers;
+    const { id } = req.params;
+
+    try {
+      // Retrieve the user based on the token
+      const user = await dbClient.client.db().collection('users').findOne({ token });
+
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      // Retrieve the file document based on the ID and user
+      const file = await dbClient.client
+        .db()
+        .collection('files')
+        .findOne({ _id: id, userId: user._id });
+
+      if (!file) {
+        return res.status(404).json({ error: 'Not found' });
+      }
+
+      return res.status(200).json(file);
+    } catch (error) {
+      console.error('Error retrieving file:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
+    }
+  }
+
+  static async getIndex(req, res) {
+    const { token } = req.headers;
+    const { parentId, page } = req.query;
+
+    try {
+      // Retrieve the user based on the token
+      const user = await dbClient.client.db().collection('users').findOne({ token });
+
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      // Convert page to a number and set default values
+      const pageNumber = parseInt(page, 10) || 0;
+      const itemsPerPage = 20;
+
+      // Calculate skip value for pagination
+      const skip = pageNumber * itemsPerPage;
+
+      // Build the aggregation pipeline for retrieving files
+      const pipeline = [
+        { $match: { parentId: parentId || 0, userId: user._id } },
+        { $skip: skip },
+        { $limit: itemsPerPage },
+      ];
+
+      // Retrieve the list of file documents
+      const files = await dbClient.client
+        .db()
+        .collection('files')
+        .aggregate(pipeline)
+        .toArray();
+
+      return res.status(200).json(files);
+    } catch (error) {
+      console.error('Error retrieving files:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
+    }
+  }
 }
 module.exports = FileController;
