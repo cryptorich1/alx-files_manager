@@ -1,4 +1,5 @@
 const bcrypt = require('bcrypt');
+const redisClient = require('../utils/redis');
 const dbClient = require('../utils/db');
 
 class UsersController {
@@ -43,6 +44,38 @@ class UsersController {
       return res.status(500).json({ error: 'Internal Server Error' });
     }
   }
+   static async getMe(req, res) {
+    const { 'x-token': token } = req.headers;
+
+    if (!token) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    try {
+      // Retrieve the user based on the token
+      const userId = await redisClient.client.get(`auth_${token}`);
+
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      // Retrieve the user object (email and id only)
+      const user = await dbClient.client
+        .db()
+        .collection('users')
+        .findOne({ _id: userId });
+
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      return res.status(200).json({ email: user.email, id: user._id });
+    } catch (error) {
+      console.error('Error in getMe:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
+    }
+  }
+
 }
 
 module.exports = UsersController;
