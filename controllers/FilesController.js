@@ -137,5 +137,76 @@ class FileController {
       return res.status(500).json({ error: 'Internal Server Error' });
     }
   }
+   static async putPublish(req, res) {
+    const { token } = req.headers;
+    const { id } = req.params;
+
+    try {
+      // Retrieve the user based on the token
+      const user = await dbClient.client.db().collection('users').findOne({ token });
+
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      // Retrieve the file document based on the ID and user
+      const file = await dbClient.client
+        .db()
+        .collection('files')
+        .findOne({ _id: id, userId: user._id });
+
+      if (!file) {
+        return res.status(404).json({ error: 'Not found' });
+      }
+
+      // Update the value of isPublic to true
+      await dbClient.client
+        .db()
+        .collection('files')
+        .updateOne({ _id: id }, { $set: { isPublic: true } });
+
+      // Return the updated file document
+      return res.status(200).json({ ...file, isPublic: true });
+    } catch (error) {
+      console.error('Error in putPublish:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
+    }
+  }
+
+  static async putUnpublish(req, res) {
+    const { token } = req.headers;
+    const { id } = req.params;
+
+    try {
+      // Retrieve the user based on the token
+      const user = await dbClient.client.db().collection('users').findOne({ token });
+
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      // Retrieve the file document based on the ID and user
+      const file = await dbClient.client
+        .db()
+        .collection('files')
+        .findOne({ _id: id, userId: user._id });
+
+      if (!file) {
+        return res.status(404).json({ error: 'Not found' });
+      }
+
+      // Update the value of isPublic to false
+      await dbClient.client
+        .db()
+        .collection('files')
+        .updateOne({ _id: id }, { $set: { isPublic: false } });
+
+      // Return the updated file document
+      return res.status(200).json({ ...file, isPublic: false });
+    } catch (error) {
+      console.error('Error in putUnpublish:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
+    }
+  }
 }
 module.exports = FileController;
