@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const {v4: uuidv4 } = require('uuid');
 const dbClient = require('../utils/db');
+const mime = require('mime-types');
 
 class FileController {
   static async postUpload(req, res) {
@@ -208,5 +209,53 @@ class FileController {
       return res.status(500).json({ error: 'Internal Server Error' });
     }
   }
+  static async getFile(req, res) {
+    const { token } = req.headers;
+    const { id } = req.params;
+
+    try {
+      // Retrieve the file document based on the ID
+      const file = await dbClient.client
+        .db()
+        .collection('files')
+        .findOne({ _id: id });
+
+      if (!file) {
+        return res.status(404).json({ error: 'Not found' });
+      }
+
+      // Check if the file is public or if the user is authenticated and the owner of the file
+      if (!file.isPublic) {
+        const user = await dbClient.client.db().collection('users').findOne({ token });
+        if (!user || user._id.toString() !== file.userId.toString()) {
+          return res.status(404).json({ error: 'Not found' });
+        }
+      }
+
+      // Check if the file type is a folder
+      if (file.type === 'folder') {
+        return res.status(400).json({ error: "A folder doesn't have content" });
+      }
+
+      // Check if the file is locally present
+      if (!file.localPath || !fs.existsSync(file.localPath)) {
+        return res.status(404).json({ error: 'Not found' });
+      }
+
+      // Determine the MIME-type based on the file name
+      const mimeType = mime.lookup(path.extname(file.name));
+
+      // Set the appropriate Content-Type header
+      res.setHeader('Content-Type', mimeType);
+
+      // Read and stream the file content to the response
+      const fileStream = fs.createReadStream(file.localPath);
+      fileStream.pipe(res);
+    } catch (error) {
+      console.error('Error in getFile:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
+    }
+  }
+}
 }
 module.exports = FileController;
